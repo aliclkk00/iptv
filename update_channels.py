@@ -2,8 +2,9 @@ import json
 import re
 import urllib.request
 
+print(">>> update_channels.py başlatıldı! <<<")
+
 def get_youtube_m3u8(youtube_url):
-    # YouTube'un Rıza/Consent sayfasını aşmak için özel çerez ve header ekliyoruz
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
@@ -15,13 +16,13 @@ def get_youtube_m3u8(youtube_url):
         with urllib.request.urlopen(req, timeout=12) as response:
             html = response.read().decode('utf-8', errors='ignore')
 
-        # 1. Doğrudan hlsManifestUrl adresini arıyoruz
+        # 1. Doğrudan hlsManifestUrl kontrolü
         match = re.search(r'"hlsManifestUrl"\s*:\s*"([^"]+)"', html)
         if match:
             m3u8_url = match.group(1).replace(r'\/', '/').replace('\\u0026', '&')
             return m3u8_url
 
-        # 2. Doğrudan bulunamazsa canlı yayının videoId'sini çekip video sayfasına gidiyoruz
+        # 2. Canlı yayın video ID'sini bulup /watch sayfasına gitme
         video_id_match = re.search(r'"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"', html)
         if video_id_match:
             video_id = video_id_match.group(1)
@@ -44,9 +45,11 @@ def get_youtube_m3u8(youtube_url):
     return None
 
 def main():
+    print(">>> main() fonksiyonu çalışıyor... <<<")
     try:
         with open("kanallar.json", "r", encoding="utf-8") as f:
             channels = json.load(f)
+        print(f"JSON okundu. Toplam {len(channels)} kanal var.")
     except Exception as e:
         print(f"JSON okuma hatası: {e}")
         return
@@ -67,7 +70,7 @@ def main():
     if updated:
         with open("kanallar.json", "w", encoding="utf-8") as f:
             json.dump(channels, f, ensure_ascii=False, indent=2)
-        print("\n[BAŞARILI] kanallar.json başarıyla güncellendi ve kaydedildi!")
+        print("\n[BAŞARILI] kanallar.json güncellendi ve kaydedildi!")
     else:
         print("\n[BİLGİ] Güncellenecek link bulunamadı.")
 
