@@ -1,0 +1,38 @@
+name: Update YouTube M3U8 Streams
+
+on:
+  schedule:
+    # Her 3 saatte bir otomatik çalışır (Cron)
+    - cron: '0 */3 * * *'
+  workflow_dispatch: # GitHub'dan elle çalıştırma butonunu aktif eder
+
+permissions:
+  contents: write
+
+jobs:
+  update-links:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repoyu Klonla
+        uses: actions/checkout@v4
+
+      - name: Python Kurulumu
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: yt-dlp Kurulumu
+        run: |
+          python -m pip install --upgrade pip
+          pip install yt-dlp
+
+      - name: Linkleri Güncelle
+        run: python update_channels.py
+
+      - name: Değişiklikleri Commit Et ve Pushla
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action Bot"
+          git add kanallar.json
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update YouTube M3U8 links" && git push)
