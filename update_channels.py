@@ -1,28 +1,28 @@
 import json
-import subprocess
+import re
+import urllib.request
 
-def get_m3u8(youtube_url):
-    clients = ["ios", "android", "mweb", "web"]
-    for client in clients:
-        try:
-            # yt-dlp ile doğrudan canlı m3u8 linkini yazdırıyoruz
-            cmd = [
-                "yt-dlp",
-                "-g",
-                "-f", "best/bestvideo+bestaudio",
-                "--extractor-args", f"youtube:player_client={client}",
-                "--no-warnings",
-                "--geo-bypass",
-                youtube_url
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-            lines = result.stdout.strip().splitlines()
-            for line in lines:
-                if line.startswith("http"):
-                    print(f"  [+] Başarılı ({client})")
-                    return line
-        except Exception:
-            continue
+def get_youtube_m3u8(youtube_url):
+    try:
+        # YouTube canlı yayın sayfasını taranan bir Google Chrome gibi çağırıyoruz
+        req = urllib.request.Request(
+            youtube_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'tr-TR,tr;q=0.9'
+            }
+        )
+        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
+        
+        # Sayfa kaynak kodundaki gizli hlsManifestUrl (m3u8) adresini buluyoruz
+        match = re.search(r'"hlsManifestUrl"\s*:\s*"([^"]+)"', html)
+        if match:
+            m3u8_url = match.group(1).replace(r'\/', '/')
+            return m3u8_url
+        else:
+            print(f"  [!] hlsManifestUrl bulunamadı: {youtube_url}")
+    except Exception as e:
+        print(f"  [!] HTTP/Sayfa Okuma Hatası ({youtube_url}): {e}")
     return None
 
 def main():
@@ -38,18 +38,20 @@ def main():
         yt_target = channel.get("youtube_url")
         if yt_target:
             print(f"İşleniyor: {channel.get('name')} -> {yt_target}")
-            m3u8_link = get_m3u8(yt_target)
+            m3u8_link = get_youtube_m3u8(yt_target)
             if m3u8_link:
                 channel["url"] = m3u8_link
                 updated = True
-                print(f"  -> Link güncellendi.")
+                print(f"  [✓] Başarıyla Çekildi: {m3u8_link[:60]}...")
             else:
-                print(f"  -> Link çekilemedi!")
+                print(f"  [✗] Link Çekilemedi: {channel.get('name')}")
 
     if updated:
         with open("kanallar.json", "w", encoding="utf-8") as f:
             json.dump(channels, f, ensure_ascii=False, indent=2)
-        print("kanallar.json başarıyla kaydedildi!")
+        print("\n[BAŞARILI] kanallar.json güncellendi ve kaydedildi!")
+    else:
+        print("\n[BİLGİ] Güncellenecek link bulunamadı.")
 
 if __name__ == "__main__":
     main()
