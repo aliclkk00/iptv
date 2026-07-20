@@ -2,29 +2,27 @@ import json
 import subprocess
 
 def get_m3u8(youtube_url):
-    # YouTube kısıtlamalarını aşmak için farklı istemcileri dener
     clients = ["ios", "android", "mweb", "web"]
-    
     for client in clients:
         try:
+            # yt-dlp ile doğrudan canlı m3u8 linkini yazdırıyoruz
             cmd = [
                 "yt-dlp",
                 "-g",
-                "-f", "b/best",
+                "-f", "best/bestvideo+bestaudio",
                 "--extractor-args", f"youtube:player_client={client}",
                 "--no-warnings",
+                "--geo-bypass",
                 youtube_url
             ]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
             lines = result.stdout.strip().splitlines()
-            
             for line in lines:
                 if line.startswith("http"):
-                    print(f"  [+] Başarılı ({client}): {line[:50]}...")
+                    print(f"  [+] Başarılı ({client})")
                     return line
         except Exception:
             continue
-            
     return None
 
 def main():
@@ -39,20 +37,19 @@ def main():
     for channel in channels:
         yt_target = channel.get("youtube_url")
         if yt_target:
-            print(f"\nİşleniyor: {channel.get('name')} ({yt_target})")
+            print(f"İşleniyor: {channel.get('name')} -> {yt_target}")
             m3u8_link = get_m3u8(yt_target)
             if m3u8_link:
                 channel["url"] = m3u8_link
                 updated = True
+                print(f"  -> Link güncellendi.")
             else:
-                print(f"  [-] Link çekilemedi: {channel.get('name')}")
+                print(f"  -> Link çekilemedi!")
 
     if updated:
         with open("kanallar.json", "w", encoding="utf-8") as f:
             json.dump(channels, f, ensure_ascii=False, indent=2)
-        print("\nkanallar.json başarıyla güncellendi!")
-    else:
-        print("\nGüncellenecek link bulunamadı.")
+        print("kanallar.json başarıyla kaydedildi!")
 
 if __name__ == "__main__":
     main()
