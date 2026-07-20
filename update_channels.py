@@ -4,91 +4,49 @@ import urllib.request
 
 print(">>> update_channels.py başlatıldı! <<<")
 
-def get_m3u8_from_embed(video_id):
-    embed_url = f"https://www.youtube.com/embed/{video_id}"
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept-Language': 'tr-TR,tr;q=0.9',
-        'Cookie': 'SOCS=CAI; CONSENT=YES+cb.20210328-17-p0.en+FX+111'
-    }
+def get_m3u8_from_apis(video_id):
+    # Yöntem 1: Lemnoslife API (YouTube Engellerini Aşan Özel Proxy)
     try:
-        req = urllib.request.Request(embed_url, headers=headers)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            html = resp.read().decode('utf-8', errors='ignore')
-            
-        # 1. hlsManifestUrl kontrolü
-        match = re.search(r'"hlsManifestUrl"\s*:\s*"([^"]+)"', html)
-        if match:
-            url = match.group(1).replace(r'\/', '/').replace('\\u0026', '&')
-            print(f"  [✓] Embed sayfasından hlsManifestUrl bulundu.")
-            return url
-            
-        # 2. Googlevideo manifest URL kontrolü
-        match_manifest = re.search(r'(https:\\?/\\?/manifest\.googlevideo\.com\\?/api\\?/manifest\\?/hls_playlist\\?/[^"]+)', html)
-        if match_manifest:
-            url = match_manifest.group(1).replace(r'\/', '/').replace('\\u0026', '&')
-            print(f"  [✓] Embed sayfasından manifest URL bulundu.")
-            return url
-    except Exception as e:
-        print(f"  [!] Embed hatası ({video_id}): {e}")
-    return None
+        url = f"https://yt.lemnoslife.com/noKey/player?videoId={video_id}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            hls_url = data.get('streamingData', {}).get('hlsManifestUrl')
+            if hls_url:
+                print(f"  [✓] m3u8 bulundu! (Kaynak: Lemnoslife API)")
+                return hls_url
+    except Exception:
+        pass
 
-def get_m3u8_from_innertube(video_id):
-    url = "https://www.youtube.com/youtubei/v1/player"
-    clients = [
-        {
-            "clientName": "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-            "clientVersion": "2.0",
-            "hl": "tr",
-            "gl": "TR"
-        },
-        {
-            "clientName": "ANDROID_TESTSUITE",
-            "clientVersion": "1.9",
-            "androidSdkVersion": 31,
-            "hl": "tr",
-            "gl": "TR"
-        },
-        {
-            "clientName": "WEB_EMBEDDED_PLAYER",
-            "clientVersion": "1.20240308.00.00",
-            "hl": "tr",
-            "gl": "TR"
-        }
+    # Yöntem 2: Piped API Sunucuları (Yedek Aracı Sunucular)
+    instances = [
+        "https://pipedapi.kavin.rocks",
+        "https://pipedapi.tokhmi.xyz",
+        "https://pipedapi.syncpundit.io"
     ]
-    
-    for client in clients:
+    for instance in instances:
         try:
-            payload = {
-                "context": {"client": client},
-                "videoId": video_id
-            }
-            data = json.dumps(payload).encode('utf-8')
-            req = urllib.request.Request(
-                url, 
-                data=data, 
-                headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                res_json = json.loads(resp.read().decode('utf-8'))
-                hls_url = res_json.get('streamingData', {}).get('hlsManifestUrl')
+            url = f"{instance}/streams/{video_id}"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                hls_url = data.get('hls')
                 if hls_url:
-                    print(f"  [✓] InnerTube ({client['clientName']}) ile m3u8 bulundu.")
+                    print(f"  [✓] m3u8 bulundu! (Kaynak: {instance})")
                     return hls_url
-        except Exception as e:
-            print(f"  [!] InnerTube ({client['clientName']}) hatası: {e}")
+        except Exception:
             continue
+            
     return None
 
 def get_youtube_m3u8(youtube_url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'tr-TR,tr;q=0.9',
-        'Cookie': 'SOCS=CAI; CONSENT=YES+cb.20210328-17-p0.en+FX+111',
     }
     
     try:
-        # 1. Video ID Tespiti
+        # 1. Önce Canlı Yayının Video ID'sini Buluyoruz
         video_id = None
         v_match = re.search(r'[?&]v=([a-zA-Z0-9_-]{11})', youtube_url)
         if v_match:
@@ -108,18 +66,13 @@ def get_youtube_m3u8(youtube_url):
 
         print(f"  [>] Canlı Yayın ID: {video_id}")
         
-        # 2. Embed sayfasını dene
-        m3u8_link = get_m3u8_from_embed(video_id)
-        if m3u8_link:
-            return m3u8_link
-            
-        # 3. InnerTube API alternatif istemcilerini dene
-        m3u8_link = get_m3u8_from_innertube(video_id)
+        # 2. ID bulunduktan sonra IP engeline takılmamak için Proxy API'lere soruyoruz!
+        m3u8_link = get_m3u8_from_apis(video_id)
         if m3u8_link:
             return m3u8_link
 
     except Exception as e:
-        print(f"  [!] Genel Hatası ({youtube_url}): {e}")
+        print(f"  [!] Genel Hata ({youtube_url}): {e}")
     
     return None
 
